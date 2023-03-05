@@ -3,10 +3,17 @@
 # it also gives direct link to load
 import requests
 import json
-import csv
-proxy_url = "https://proxylist.geonode.com/api/proxy-list?limit=500&page=1&sort_by=lastChecked&sort_type=desc"
+import concurrent.futures
+print("Remember a larger number might help to find more working proxy but will consume more resources and time")
+try:
+    n = int(input("How Many Proxies You Want To Search For : "))
+except:
+    print("Enter a valid number")
+
+proxy_url = f"https://proxylist.geonode.com/api/proxy-list?limit={n}&page=1&sort_by=lastChecked&sort_type=desc&protocols=http"
 # site to check whether proxy working returns ip dictionary
 target_url = "http://httpbin.org/ip"
+working = list()
 
 # function created to return proxy list from geonode json data
 
@@ -25,23 +32,19 @@ def fetchproxy(url):
 # function created to ping target url and find the working one
 
 
-def send_request(proxies):
-    workingproxies = list()
-    for proxy in proxies:
-        try:
-            # will send request to httpbin using proxy from fetched proxies
-            response = requests.get(target_url,
-                                    # adding basic schema of proxy
-                                    proxies={'http': 'http://' + proxy,
-                                             'https': 'https://' + proxy},
-                                    timeout=3)
-            print("Working Proxy : " + response.json()["origin"])
-            # will add working proxy to workingproxylist
-            workingproxies.append(proxy)
-        except:
-            print("Failed Proxy : " + proxy)
-            pass
-        return workingproxies
+def send_request(proxy):
+    try:
+        # will send request to httpbin using proxy from fetched proxies
+        response = requests.get(target_url,
+                                # adding basic schema of proxy
+                                proxies={'http': 'http://' + proxy,
+                                         'https': 'https://' + proxy},
+                                timeout=3)
+        print("Working Proxy : " + str(response.json()["origin"]))
+        # will add working proxy to workingproxylist
+        working.append(proxy)
+    except:
+        pass
 
 # for export working proxies as a csv file
 
@@ -55,7 +58,9 @@ def export(proxylist):
 
 def main():
     proxies = fetchproxy(proxy_url)
-    working = send_request(proxies)
+    # using concurrent future to send all requests and wait in parrallel for response
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        executor.map(send_request, proxies)
     export(working)
 
 
